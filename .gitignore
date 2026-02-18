@@ -1,0 +1,6 @@
+# Ignore working files
+temp/
+voices/
+
+# Ignore cursor files
+.cursor/

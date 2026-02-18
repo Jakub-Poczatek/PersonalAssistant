@@ -1,0 +1,11 @@
+# Basics
+numPy
+
+# I/O
+sounddevice
+
+# Speech Recognision
+faster-whisper
+
+#text-to-speech
+piper-tts
