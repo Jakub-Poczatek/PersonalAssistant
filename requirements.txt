@@ -4,8 +4,12 @@ numPy
 # I/O
 sounddevice
 
-# Speech Recognision
+# Speech Recognition
 faster-whisper
+
+# Wake Word Detection
+openwakeword
+onnxruntime
 
 #text-to-speech
 piper-tts

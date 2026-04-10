@@ -9,3 +9,8 @@ pip install -r requirements.txt
 ```bash
 python -m piper.download_voices en_US-lessac-medium
 ```
+
+## Download OpenWakeWord Models using Python
+```bash
+python .\setup_models.py
+```
