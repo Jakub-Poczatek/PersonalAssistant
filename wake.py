@@ -13,13 +13,13 @@ def wait_for_wake_word(model):
 
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype='int16') as stream:
         while True:
-            audio_chunk, _ = stream.read(CHUNK_SIZE)
+            chunk, _ = stream.read(CHUNK_SIZE)
 
             # (CHUNK_SIZE, 1) -> (CHUNK_SIZE,)
-            audio_chunk = audio_chunk.squeeze()
+            chunk = chunk.squeeze()
 
             # openWakeWord expects int16 PCM at 16kHz
-            predictions = model.predict(audio_chunk)
+            predictions = model.predict(chunk)
 
             #predictions is usually a dict: {model_name: score}
             for name, score in predictions.items():
