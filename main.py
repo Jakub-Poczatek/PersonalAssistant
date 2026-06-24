@@ -9,12 +9,26 @@ from piper import PiperVoice
 from openwakeword.model import Model as WakeWordModel
 from wake import wait_for_wake_word
 
+#skills
+import skills.weather as skill_weather
+import skills.time as skill_time
+
 # Needs to be 16khz for faster_whisper
 SAMPLE_RATE = 16000
 CHANNELS = 1
 WHISPER_MODEL = "large-v3"
 WAV_PATH = "test.wav"
-KNOWN_COMMANDS = ["weather", "time"]
+KNOWN_COMMANDS = ["weather", "time", "date"]
+
+def default_decision():
+    return "I didn't get that, please repeat"
+
+skill_reg = {
+    "default": default_decision, 
+    "weather": skill_weather.get_weather, 
+    "time": skill_time.get_time,
+    "date": skill_time.get_date
+}
 
 sys.stdout.reconfigure(encoding="utf-8")
 logger = logging.getLogger()
@@ -49,16 +63,20 @@ def main():
         try:
             wait_for_wake_word(wake_word_model)
             time.sleep(0.25)
-            listen(whisper_model, piper_voice)
+            command_recognised = False
+            while not command_recognised:
+                command_recognised = listen(whisper_model, piper_voice)
         except Exception as e:
             logger.error(f"Something went wrong, restarting... \n{e}")
+        except KeyboardInterrupt:
+            logger.info(f"Shutting down...")
+            quit()
     
 
 def listen(model, piper_voice):
-    logger.info("Recording...")
-
     recording = None
     while (recording is None):
+        logger.info("Recording...")
         recording = record_until_silence()
     
     logger.info("Recording Stopped")
@@ -71,12 +89,19 @@ def listen(model, piper_voice):
     commands = [c.strip() for c in command.split(" and ")]
     commands = [c for c in commands if any(kc in c for kc in KNOWN_COMMANDS)]
 
-    say(decide(commands), piper_voice)
+    decision = decide(commands)
+    
+    say(skill_reg[decision](), piper_voice)
+
+    if decision == "default":
+        return False
+    
+    return True
 
 def record_until_silence():
     CHUNK_SIZE = 512
-    RMS_MIN = 0.075
-    MAX_RECORD_SECS = 15
+    RMS_MIN = 0.05
+    MAX_RECORD_SECS = 5
     MAX_RECORD_SAMPLES = MAX_RECORD_SECS * SAMPLE_RATE
     SILENCE_MIN = 1
     SILENT_CHUNKS_CUTOFF = (SILENCE_MIN * SAMPLE_RATE) / CHUNK_SIZE
@@ -110,11 +135,13 @@ def record_until_silence():
 def decide(commands):
     for c in commands:
         if "weather" in c:
-            return "The weather is nice"
+            return "weather"
         elif "time" in c:
-            return "It's the right time"
+            return "time"
+        elif "date" in c:
+            return "date"
         
-    return "I didn't get that, please repeat"
+    return "default"
 
 def say(text, voice):
     logger.debug(text)

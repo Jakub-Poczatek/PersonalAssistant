@@ -7,3 +7,6 @@ voices/
 
 # Ignore logging
 log.txt
+
+# Ignore temporary files
+__pycache__
