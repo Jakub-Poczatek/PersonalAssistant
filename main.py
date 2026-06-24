@@ -2,6 +2,7 @@ import numpy
 import time
 import wave
 import logging
+import sys
 import sounddevice as sd
 from faster_whisper import WhisperModel
 from piper import PiperVoice
@@ -15,36 +16,52 @@ WHISPER_MODEL = "large-v3"
 WAV_PATH = "test.wav"
 KNOWN_COMMANDS = ["weather", "time"]
 
+sys.stdout.reconfigure(encoding="utf-8")
+logger = logging.getLogger()
+logging.getLogger("piper").setLevel(logging.WARNING)
+
 def main():
+        
+    log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+
+    logger.setLevel(logging.DEBUG)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(log_formatter)
+    console_handler.setLevel(logging.INFO)
+    
+    file_handler = logging.FileHandler("log.txt")
+    file_handler.setFormatter(log_formatter)
+    file_handler.setLevel(logging.DEBUG)
+
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+
     try:
-        whisperModel = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
-        wakeWordModel = WakeWordModel(inference_framework="onnx", wakeword_models=["hey_jarvis"])
-        piperVoice = PiperVoice.load(r"voices\en_US-lessac-medium.onnx")
+        whisper_model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
+        wake_word_model = WakeWordModel(inference_framework="onnx", wakeword_models=["hey_jarvis"])
+        piper_voice = PiperVoice.load(r"voices\en_US-lessac-medium.onnx")
     except Exception as e:
-        print(f"Failed to load models, exiting... \n{e}")
+        logger.critical(f"Failed to load models, exiting... \n{e}")
         quit()
 
     while True:
         try:
-            wait_for_wake_word(wakeWordModel)
+            wait_for_wake_word(wake_word_model)
             time.sleep(0.25)
-            listen(whisperModel, piperVoice)
+            listen(whisper_model, piper_voice)
         except Exception as e:
-            try:    
-                say("Something went wrong, restarting...", piperVoice)
-            except Exception as SayException:
-                print(f"Something went wrong while speaking... \n{SayException}")
-            print(f"Something went wrong, restarting... \n{e}")
+            logger.error(f"Something went wrong, restarting... \n{e}")
     
 
-def listen(model, piperVoice):
-    print("Recording...")
+def listen(model, piper_voice):
+    logger.info("Recording...")
 
     recording = None
     while (recording is None):
         recording = record_until_silence()
     
-    print("Recording Stopped")
+    logger.info("Recording Stopped")
 
     segments, _ = model.transcribe(recording, beam_size=5, language="en")
     
@@ -54,7 +71,7 @@ def listen(model, piperVoice):
     commands = [c.strip() for c in command.split(" and ")]
     commands = [c for c in commands if any(kc in c for kc in KNOWN_COMMANDS)]
 
-    say(decide(commands), piperVoice)
+    say(decide(commands), piper_voice)
 
 def record_until_silence():
     CHUNK_SIZE = 512
@@ -100,7 +117,7 @@ def decide(commands):
     return "I didn't get that, please repeat"
 
 def say(text, voice):
-    print(text)
+    logger.debug(text)
 
     with wave.open(WAV_PATH, "wb") as wav_file:
         voice.synthesize_wav(text, wav_file)

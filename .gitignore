@@ -4,3 +4,6 @@ voices/
 
 # Ignore cursor files
 .cursor/
+
+# Ignore logging
+log.txt
