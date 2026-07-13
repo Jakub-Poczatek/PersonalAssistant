@@ -3,12 +3,14 @@ import time
 import wave
 import logging
 import sys
+import os
 import sounddevice as sd
 from faster_whisper import WhisperModel
 from piper import PiperVoice
 from openwakeword.model import Model as WakeWordModel
 from wake import wait_for_wake_word
 from nlu import nlu
+from datetime import datetime
 
 #skills
 import skills.weather as skill_weather
@@ -18,7 +20,10 @@ import skills.time as skill_time
 SAMPLE_RATE = 16000
 CHANNELS = 1
 WHISPER_MODEL = "large-v3"
+TARGET_RMS = 0.1
 WAV_PATH = "test.wav"
+FAILED_RECORDING_PATH = "error\\failed_recordings\\"
+WHISPER_HOTWORDS = "weather"
 
 def default_decision(**params):
     return "I didn't get that, please repeat"
@@ -35,6 +40,7 @@ logger = logging.getLogger("assistant.main")
 
 def main():
 
+    create_directories()
     config_logger()
 
     try:
@@ -65,9 +71,10 @@ def listen(model, piper_voice):
         logger.info("Recording...")
         recording = record_until_silence()
     
+    recording = normalize_recording(recording)
     logger.info("Recording Stopped")
 
-    segments, _ = model.transcribe(recording, beam_size=5, language="en")
+    segments, _ = model.transcribe(recording, beam_size=5, language="en", hotwords=WHISPER_HOTWORDS)
     
     cmd = "".join(s.text for s in segments)
     cmd = cmd.lower()
@@ -81,13 +88,14 @@ def listen(model, piper_voice):
     say(skill_fn(**params), piper_voice)
 
     if skill_key == "default.unknown":
+        save_failed_recording(recording)
         return False
     
     return True
 
 def record_until_silence():
     CHUNK_SIZE = 512
-    RMS_MIN = 0.05
+    RMS_MIN = 0.01
     MAX_RECORD_SECS = 5
     MAX_RECORD_SAMPLES = MAX_RECORD_SECS * SAMPLE_RATE
     SILENCE_MIN = 1
@@ -134,6 +142,31 @@ def say(text, voice):
 
     sd.play(audio, rate)
     sd.wait()
+
+def normalize_recording(recording):
+    rms = numpy.sqrt(numpy.mean(recording ** 2))
+    if rms < 0.005:
+        return recording
+    
+    # multiple by scale
+    scale = TARGET_RMS / rms
+    res_rec = recording * scale
+    # clip between valid values
+    res_rec = numpy.clip(res_rec, -1.0, 1.0)
+
+    return res_rec
+
+def save_failed_recording(recording):
+    current_date = datetime.now().strftime("%Y%m%d_%H%M%S")
+    with wave.open(f"{FAILED_RECORDING_PATH}failed_rec_{current_date}.wav", "wb") as wav_file:
+        conv_rec = (recording * (2 ** 15 - 1)).astype("<h")
+        wav_file.setnchannels(CHANNELS)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(SAMPLE_RATE)
+        wav_file.writeframes(conv_rec)
+
+def create_directories():
+    os.makedirs(FAILED_RECORDING_PATH, exist_ok=True)
 
 def config_logger():
     log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")

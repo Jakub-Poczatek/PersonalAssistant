@@ -11,6 +11,7 @@ log.txt
 # Ignore temporary files
 __pycache__
 test.wav
+error/
 
 # Ignore env
 .venv
