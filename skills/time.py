@@ -1,10 +1,10 @@
 from datetime import datetime
 
-def get_time():
+def get_time(**params):
     current_time = datetime.now().strftime("%I:%M %p")
     return f"The time is currently {current_time}"
 
-def get_date():
+def get_date(**params):
     now = datetime.now()
     day_name = now.strftime("%A")
     month_name = now.strftime("%B")

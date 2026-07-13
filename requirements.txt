@@ -13,3 +13,6 @@ onnxruntime
 
 #text-to-speech
 piper-tts
+
+# Natural Language Understanding
+ollama

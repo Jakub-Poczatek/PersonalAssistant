@@ -8,6 +8,7 @@ from faster_whisper import WhisperModel
 from piper import PiperVoice
 from openwakeword.model import Model as WakeWordModel
 from wake import wait_for_wake_word
+from nlu import nlu
 
 #skills
 import skills.weather as skill_weather
@@ -18,38 +19,23 @@ SAMPLE_RATE = 16000
 CHANNELS = 1
 WHISPER_MODEL = "large-v3"
 WAV_PATH = "test.wav"
-KNOWN_COMMANDS = ["weather", "time", "date"]
 
-def default_decision():
+def default_decision(**params):
     return "I didn't get that, please repeat"
 
 skill_reg = {
-    "default": default_decision, 
-    "weather": skill_weather.get_weather, 
-    "time": skill_time.get_time,
-    "date": skill_time.get_date
+    "default.unknown": default_decision, 
+    "weather.get_weather": skill_weather.get_weather, 
+    "time.get_time": skill_time.get_time,
+    "time.get_date": skill_time.get_date
 }
 
-sys.stdout.reconfigure(encoding="utf-8")
-logger = logging.getLogger()
-logging.getLogger("piper").setLevel(logging.WARNING)
+# sys.stdout.reconfigure(encoding="utf-8") # type: ignore
+logger = logging.getLogger("assistant.main")
 
 def main():
-        
-    log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
 
-    logger.setLevel(logging.DEBUG)
-
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(log_formatter)
-    console_handler.setLevel(logging.INFO)
-    
-    file_handler = logging.FileHandler("log.txt")
-    file_handler.setFormatter(log_formatter)
-    file_handler.setLevel(logging.DEBUG)
-
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
+    config_logger()
 
     try:
         whisper_model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
@@ -83,17 +69,18 @@ def listen(model, piper_voice):
 
     segments, _ = model.transcribe(recording, beam_size=5, language="en")
     
-    command = "".join(s.text for s in segments)
-    command = command.lower()
+    cmd = "".join(s.text for s in segments)
+    cmd = cmd.lower()
 
-    commands = [c.strip() for c in command.split(" and ")]
-    commands = [c for c in commands if any(kc in c for kc in KNOWN_COMMANDS)]
+    response = nlu(cmd)
 
-    decision = decide(commands)
+    skill_key = response["skill"]
+    skill_fn = skill_reg.get(skill_key, default_decision)
+    params = response["params"]
     
-    say(skill_reg[decision](), piper_voice)
+    say(skill_fn(**params), piper_voice)
 
-    if decision == "default":
+    if skill_key == "default.unknown":
         return False
     
     return True
@@ -132,17 +119,6 @@ def record_until_silence():
     recording = numpy.concatenate(chunks)
     return recording if started_talking else None 
 
-def decide(commands):
-    for c in commands:
-        if "weather" in c:
-            return "weather"
-        elif "time" in c:
-            return "time"
-        elif "date" in c:
-            return "date"
-        
-    return "default"
-
 def say(text, voice):
     logger.debug(text)
 
@@ -158,6 +134,24 @@ def say(text, voice):
 
     sd.play(audio, rate)
     sd.wait()
+
+def config_logger():
+    log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+
+    app_logger = logging.getLogger("assistant")
+    app_logger.setLevel(logging.DEBUG)
+    app_logger.propagate = False
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(log_formatter)
+    console_handler.setLevel(logging.DEBUG)
+    
+    file_handler = logging.FileHandler("log.txt")
+    file_handler.setFormatter(log_formatter)
+    file_handler.setLevel(logging.DEBUG)
+
+    app_logger.addHandler(console_handler)
+    app_logger.addHandler(file_handler)
 
 if __name__ == "__main__":
     main()

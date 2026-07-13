@@ -9,7 +9,7 @@ CHUNK_SIZE = 1280
 FLUSH_SIZE = 32000
 THRESHOLD = 0.75
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("assistant.wake")
 
 def wait_for_wake_word(model):
     logger.info("Listening for wake word... Press Ctrl+C to stop.")

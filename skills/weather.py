@@ -1,2 +1,2 @@
-def get_weather():
+def get_weather(**params):
     return "The weather is nice"
